@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>化学结构编辑器（HTML 版）</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/kekule@0.9.9/dist/themes/default/kekule.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/kekule@0.9.9/dist/themes/default/styles/chemWidget.css"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-primary: #0f172a;
+        --bg-secondary: #111a34;
+        --bg-tertiary: #16223d;
+        --accent: #38bdf8;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
+        gap: 16px;
+        height: 100%;
+        padding: 16px;
+      }
+
+      #editor-canvas {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--bg-secondary);
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 16px;
+        border-radius: 12px;
+        background: var(--bg-secondary);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      label {
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        resize: vertical;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        background: var(--bg-tertiary);
+        color: inherit;
+        font-family: "Fira Code", monospace;
+        font-size: 0.95rem;
+      }
+
+      textarea:focus,
+      input:focus {
+        outline: 2px solid rgba(56, 189, 248, 0.6);
+        outline-offset: 1px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        background: var(--bg-tertiary);
+        color: inherit;
+      }
+
+      button {
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        background: rgba(56, 189, 248, 0.1);
+        color: var(--accent);
+        transition: background 0.2s, transform 0.2s;
+      }
+
+      button:hover {
+        background: rgba(56, 189, 248, 0.2);
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .status {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        min-height: 20px;
+      }
+
+      .tips {
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <div id="editor-canvas"></div>
+      <aside class="sidebar">
+        <h1>化学结构编辑器（HTML 版）</h1>
+
+        <div class="panel">
+          <label for="smiles-output">当前 SMILES</label>
+          <textarea
+            id="smiles-output"
+            readonly
+            placeholder="SMILES 将显示在此处。"
+          ></textarea>
+          <div class="actions">
+            <button id="copy-smiles">复制 SMILES</button>
+            <button id="clear-canvas">清空画布</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label for="smiles-input">导入 SMILES</label>
+          <form id="load-form">
+            <input
+              type="text"
+              id="smiles-input"
+              placeholder="在此输入 SMILES 后回车或点击载入"
+              autocomplete="off"
+            />
+            <div class="actions" style="margin-top: 8px">
+              <button type="submit">载入结构</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="status" id="status-message">正在初始化编辑器…</div>
+
+        <div class="tips">
+          提示：
+          <br />· 左侧画布提供原子、键、环等工具；
+          <br />· 编辑操作将实时生成 SMILES；
+          <br />· 可粘贴已有 SMILES 并点击载入重建结构。
+        </div>
+      </aside>
+    </div>
+
+    <script src="https://unpkg.com/kekule@0.9.9/dist/kekule.js?modules=chemWidget,gui,calculation,openbabel,indigo"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const canvas = document.getElementById("editor-canvas");
+        const output = document.getElementById("smiles-output");
+        const input = document.getElementById("smiles-input");
+        const statusEl = document.getElementById("status-message");
+        const copyBtn = document.getElementById("copy-smiles");
+        const clearBtn = document.getElementById("clear-canvas");
+        const loadForm = document.getElementById("load-form");
+
+        let composer = null;
+
+        function setStatus(message) {
+          statusEl.textContent = message;
+        }
+
+        function updateOutput(smiles) {
+          output.value = smiles || "";
+          if (smiles) {
+            setStatus("SMILES 已更新。");
+          } else {
+            setStatus("当前画布为空。");
+          }
+        }
+
+        function refreshSmiles() {
+          if (!composer) {
+            updateOutput("");
+            return;
+          }
+          const chemObj = composer.getChemObj();
+          if (!chemObj) {
+            updateOutput("");
+            return;
+          }
+          try {
+            const smiles = Kekule.IO.saveFormatData(chemObj, "smi") || "";
+            updateOutput(smiles);
+          } catch (error) {
+            console.error("Failed to convert to SMILES", error);
+            updateOutput("");
+            setStatus("SMILES 生成失败，请检查结构。");
+          }
+        }
+
+        function setupComposer() {
+          composer = new Kekule.Editor.Composer(canvas);
+          composer.setEnableOperHistory(true);
+          composer.setChemWidgetConfigs({
+            enableHotkey: true,
+            toolButtons: [
+              "manipulate",
+              "erase",
+              "bond",
+              "atom",
+              "ring",
+              "chain",
+              "charge",
+              "query",
+              "text",
+            ],
+          });
+          composer.addEventListener("chemObjChanged", refreshSmiles);
+          composer.addEventListener("editOperationExec", refreshSmiles);
+          refreshSmiles();
+          setStatus("编辑器已就绪。");
+        }
+
+        function clearCanvas() {
+          if (!composer) return;
+          composer.newEditorObj();
+          refreshSmiles();
+        }
+
+        function loadSmiles(smiles) {
+          if (!composer) return;
+          try {
+            const mol = Kekule.IO.loadFormatData(smiles || "", "smi");
+            composer.setChemObj(mol);
+            refreshSmiles();
+            setStatus("SMILES 已载入。");
+          } catch (error) {
+            console.error("Failed to load SMILES", error);
+            updateOutput("");
+            setStatus("载入失败：请输入有效的 SMILES。");
+          }
+        }
+
+        copyBtn.addEventListener("click", function () {
+          const smiles = output.value.trim();
+          if (!smiles) {
+            setStatus("当前没有可复制的 SMILES。");
+            return;
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard
+              .writeText(smiles)
+              .then(() => setStatus("SMILES 已复制到剪贴板。"))
+              .catch((error) => {
+                console.error("Clipboard write failed", error);
+                setStatus("复制失败，请手动复制。");
+              });
+          } else {
+            output.select();
+            document.execCommand("copy");
+            setStatus("SMILES 已复制到剪贴板。");
+          }
+        });
+
+        clearBtn.addEventListener("click", function () {
+          clearCanvas();
+          input.value = "";
+          setStatus("画布已清空。");
+        });
+
+        loadForm.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const smiles = input.value.trim();
+          if (!smiles) {
+            setStatus("请输入有效的 SMILES。");
+            return;
+          }
+          loadSmiles(smiles);
+        });
+
+        setupComposer();
+      });
+    </script>
+  </body>
+</html>
