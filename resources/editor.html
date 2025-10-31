@@ -2,11 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-    />
-    <title>嵌入式化学编辑器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>化学结构编辑器</title>
     <link
       rel="stylesheet"
       href="https://unpkg.com/kekule@0.9.9/dist/themes/default/kekule.css"
@@ -18,9 +15,9 @@
     <style>
       html,
       body {
-        margin: 0;
         width: 100%;
         height: 100%;
+        margin: 0;
         background: #0f172a;
       }
       #editor-root {
@@ -35,13 +32,17 @@
     <script src="https://unpkg.com/kekule@0.9.9/dist/kekule.js?modules=chemWidget,gui,calculation,openbabel,indigo"></script>
     <script>
       (function () {
-        let bridge = null;
         let composer = null;
-        const editorContainer = document.getElementById("editor-root");
+        let bridge = null;
 
         function notifySmiles(smiles) {
-          if (bridge && bridge.updateSmiles) {
-            bridge.updateSmiles(smiles || "");
+          const value = smiles || "";
+          if (bridge && typeof bridge.updateSmiles === "function") {
+            try {
+              bridge.updateSmiles(value);
+            } catch (error) {
+              console.error("updateSmiles call failed", error);
+            }
           }
         }
 
@@ -65,7 +66,8 @@
         }
 
         function setupComposer() {
-          composer = new Kekule.Editor.Composer(editorContainer);
+          const container = document.getElementById("editor-root");
+          composer = new Kekule.Editor.Composer(container);
           composer.setEnableOperHistory(true);
           composer.setChemWidgetConfigs({
             enableHotkey: true,
@@ -94,10 +96,13 @@
           }
           new QWebChannel(window.qt.webChannelTransport, function (channel) {
             bridge = channel.objects.bridge;
-            if (bridge && bridge.pageReady) {
-              bridge.pageReady();
+            if (bridge && typeof bridge.pageReady === "function") {
+              try {
+                bridge.pageReady();
+              } catch (error) {
+                console.error("pageReady call failed", error);
+              }
             }
-            refreshSmiles();
           });
         }
 
@@ -108,23 +113,25 @@
         };
 
         window.loadSmiles = function (smiles) {
-          if (!composer) return;
+          if (!composer) return false;
           try {
             const mol = Kekule.IO.loadFormatData(smiles || "", "smi");
             composer.setChemObj(mol);
             refreshSmiles();
+            return true;
           } catch (error) {
             console.error("Failed to load SMILES", error);
             notifySmiles("");
+            return false;
           }
         };
+
+        window.refreshSmiles = refreshSmiles;
 
         document.addEventListener("DOMContentLoaded", function () {
           setupComposer();
           connectBridge();
         });
-
-        window.refreshSmiles = refreshSmiles;
       })();
     </script>
   </body>

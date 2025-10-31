@@ -156,8 +156,8 @@ def convert_smiles(payload: MolfilePayload):
 
 ---
 
-## Python 桌面原型
-仓库中提供了一个基于 PySide6（Qt）与 Kekule.js 的桌面化学编辑器原型，可直接在 GUI 中绘制结构并同步 SMILES。
+## Python 桌面原型（PySide6）
+仓库中提供了一个基于 PySide6（Qt）与 Kekule.js 的桌面化学编辑器原型，直接在 GUI 中绘制结构并同步 SMILES。
 
 ### 运行本地示例
 ```bash
@@ -167,4 +167,4 @@ pip install PySide6 PySide6-QtWebEngine
 python app.py
 ```
 
-程序启动后会在桌面显示编辑器窗口。左侧为绘制画布，右侧面板可查看、复制当前 SMILES，或输入 SMILES 并载入到画布中。Kekule.js 资源通过 CDN 加载，运行环境需具备网络访问能力。若需离线运行，可将相关静态文件下载至 `resources/` 并在 `resources/editor.html` 中修改引用路径。
+程序启动后会在桌面显示编辑器窗口：中央为 Kekule.js 画布，侧边面板可查看 SMILES、复制到剪贴板，或输入新的 SMILES 并载入到画布中。Kekule.js 资源通过 CDN 加载，运行环境需具备网络访问能力；若需离线使用，请将相关静态文件下载至 `resources/` 并在 `resources/editor.html` 中修改引用路径。
