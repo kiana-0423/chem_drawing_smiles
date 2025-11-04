@@ -192,43 +192,46 @@
 
     <script src="https://unpkg.com/kekule@0.9.9/dist/kekule.js?modules=chemWidget,gui,calculation,openbabel,indigo"></script>
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const canvas = document.getElementById("editor-canvas");
-        const output = document.getElementById("smiles-output");
-        const input = document.getElementById("smiles-input");
-        const statusEl = document.getElementById("status-message");
-        const copyBtn = document.getElementById("copy-smiles");
-        const clearBtn = document.getElementById("clear-canvas");
-        const loadForm = document.getElementById("load-form");
-
+      (function () {
         let composer = null;
+        let canvas = null;
+        let output = null;
+        let input = null;
+        let statusEl = null;
+        let copyBtn = null;
+        let clearBtn = null;
+        let loadForm = null;
 
         function setStatus(message) {
-          statusEl.textContent = message;
+          if (statusEl) {
+            statusEl.textContent = message;
+          }
         }
 
         function updateOutput(smiles) {
-          output.value = smiles || "";
+          if (output) {
+            output.value = smiles || '';
+          }
           if (smiles) {
-            setStatus("SMILES 已更新。");
+            setStatus('SMILES 已更新。');
           } else {
-            setStatus("当前画布为空。");
+            setStatus('当前画布为空。');
           }
         }
 
         function resolveSmilesFromComposer() {
-          if (!composer) return Promise.resolve("");
+          if (!composer) return Promise.resolve('');
           const editor = composer.getEditor && composer.getEditor();
           const exportTarget =
-            (composer && typeof composer.exportData === "function" && composer) ||
-            (editor && typeof editor.exportData === "function" && editor) ||
+            (composer && typeof composer.exportData === 'function' && composer) ||
+            (editor && typeof editor.exportData === 'function' && editor) ||
             null;
           return new Promise((resolve) => {
             let resolved = false;
             try {
               const chemObj = composer.getChemObj && composer.getChemObj();
               if (chemObj) {
-                const smiles = Kekule.IO.saveFormatData(chemObj, "smi") || "";
+                const smiles = Kekule.IO.saveFormatData(chemObj, 'smi') || '';
                 if (smiles) {
                   resolved = true;
                   resolve(smiles);
@@ -236,45 +239,45 @@
                 }
               }
             } catch (error) {
-              console.warn("SMILES conversion via saveFormatData failed", error);
+              console.warn('SMILES conversion via saveFormatData failed', error);
             }
 
             if (exportTarget) {
               try {
-                const result = exportTarget.exportData("smi");
-                if (result && typeof result.then === "function") {
+                const result = exportTarget.exportData('smi');
+                if (result && typeof result.then === 'function') {
                   resolved = true;
                   result
                     .then((value) => {
                       const smiles =
-                        typeof value === "string"
+                        typeof value === 'string'
                           ? value
-                          : value && typeof value.data === "string"
+                          : value && typeof value.data === 'string'
                           ? value.data
-                          : "";
-                      resolve(smiles || "");
+                          : '';
+                      resolve(smiles || '');
                     })
                     .catch((error) => {
-                      console.error("SMILES export promise rejected", error);
-                      resolve("");
+                      console.error('SMILES export promise rejected', error);
+                      resolve('');
                     });
                   return;
                 }
                 const smiles =
-                  typeof result === "string"
+                  typeof result === 'string'
                     ? result
-                    : result && typeof result.data === "string"
+                    : result && typeof result.data === 'string'
                     ? result.data
-                    : "";
+                    : '';
                 resolved = true;
-                resolve(smiles || "");
+                resolve(smiles || '');
               } catch (error) {
-                console.error("Failed to export SMILES with editor.exportData", error);
+                console.error('Failed to export SMILES with editor.exportData', error);
               }
             }
 
             if (!resolved) {
-              resolve("");
+              resolve('');
             }
           });
         }
@@ -285,94 +288,169 @@
               updateOutput(smiles);
             })
             .catch((error) => {
-              console.error("Unexpected SMILES resolution error", error);
-              updateOutput("");
-              setStatus("SMILES 生成失败，请检查结构。");
+              console.error('Unexpected SMILES resolution error', error);
+              updateOutput('');
+              setStatus('SMILES 生成失败，请检查结构。');
             });
         }
 
         function setupComposer() {
+          if (!canvas) {
+            throw new Error('Composer canvas element missing');
+          }
           composer = new Kekule.Editor.Composer(canvas);
           composer.setEnableOperHistory(true);
           composer.setChemWidgetConfigs({
             enableHotkey: true,
             toolButtons: [
-              "manipulate",
-              "erase",
-              "bond",
-              "atom",
-              "ring",
-              "chain",
-              "charge",
-              "query",
-              "text",
+              'manipulate',
+              'erase',
+              'bond',
+              'atom',
+              'ring',
+              'chain',
+              'charge',
+              'query',
+              'text',
             ],
           });
-          composer.addEventListener("chemObjChanged", refreshSmiles);
-          composer.addEventListener("editOperationExec", refreshSmiles);
+          composer.addEventListener('chemObjChanged', refreshSmiles);
+          composer.addEventListener('editOperationExec', refreshSmiles);
           refreshSmiles();
-          setStatus("编辑器已就绪。");
+          setStatus('编辑器已就绪。');
         }
 
         function clearCanvas() {
-          if (!composer) return;
-          composer.newEditorObj();
-          refreshSmiles();
+          if (!composer) return false;
+          let cleared = false;
+          try {
+            if (typeof composer.newEditorObj === 'function') {
+              composer.newEditorObj();
+              cleared = true;
+            } else if (typeof composer.clear === 'function') {
+              composer.clear();
+              cleared = true;
+            } else {
+              const editor = composer.getEditor && composer.getEditor();
+              if (editor) {
+                if (typeof editor.newEditorObj === 'function') {
+                  editor.newEditorObj();
+                  cleared = true;
+                } else if (typeof editor.clear === 'function') {
+                  editor.clear();
+                  cleared = true;
+                }
+              }
+              if (!cleared && typeof composer.setChemObj === 'function') {
+                composer.setChemObj(null);
+                cleared = true;
+              }
+            }
+          } catch (error) {
+            console.error('Failed to clear canvas', error);
+            cleared = false;
+          }
+
+          if (cleared) {
+            refreshSmiles();
+          }
+          return cleared;
         }
 
         function loadSmiles(smiles) {
           if (!composer) return;
           try {
-            const mol = Kekule.IO.loadFormatData(smiles || "", "smi");
+            const mol = Kekule.IO.loadFormatData(smiles || '', 'smi');
             composer.setChemObj(mol);
             refreshSmiles();
-            setStatus("SMILES 已载入。");
+            setStatus('SMILES 已载入。');
           } catch (error) {
-            console.error("Failed to load SMILES", error);
-            updateOutput("");
-            setStatus("载入失败：请输入有效的 SMILES。");
+            console.error('Failed to load SMILES', error);
+            updateOutput('');
+            setStatus('载入失败：请输入有效的 SMILES。');
           }
         }
 
-        copyBtn.addEventListener("click", function () {
-          const smiles = output.value.trim();
-          if (!smiles) {
-            setStatus("当前没有可复制的 SMILES。");
-            return;
+        function initEditor() {
+          canvas = document.getElementById('editor-canvas');
+          output = document.getElementById('smiles-output');
+          input = document.getElementById('smiles-input');
+          statusEl = document.getElementById('status-message');
+          copyBtn = document.getElementById('copy-smiles');
+          clearBtn = document.getElementById('clear-canvas');
+          loadForm = document.getElementById('load-form');
+
+          if (copyBtn) {
+            copyBtn.addEventListener('click', function () {
+              const smiles = (output && output.value.trim()) || '';
+              if (!smiles) {
+                setStatus('当前没有可复制的 SMILES。');
+                return;
+              }
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard
+                  .writeText(smiles)
+                  .then(() => setStatus('SMILES 已复制到剪贴板。'))
+                  .catch((error) => {
+                    console.error('Clipboard write failed', error);
+                    setStatus('复制失败，请手动复制。');
+                  });
+              } else if (output) {
+                output.select();
+                document.execCommand('copy');
+                setStatus('SMILES 已复制到剪贴板。');
+              }
+            });
           }
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard
-              .writeText(smiles)
-              .then(() => setStatus("SMILES 已复制到剪贴板。"))
-              .catch((error) => {
-                console.error("Clipboard write failed", error);
-                setStatus("复制失败，请手动复制。");
-              });
+
+          if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+              const cleared = clearCanvas();
+              if (cleared) {
+                if (input) {
+                  input.value = '';
+                }
+                setStatus('画布已清空。');
+              } else {
+                setStatus('清空失败，请刷新页面后重试。');
+              }
+            });
+          }
+
+          if (loadForm) {
+            loadForm.addEventListener('submit', function (event) {
+              event.preventDefault();
+              const smiles = (input && input.value.trim()) || '';
+              if (!smiles) {
+                setStatus('请输入有效的 SMILES。');
+                return;
+              }
+              loadSmiles(smiles);
+            });
+          }
+
+          setupComposer();
+        }
+
+        function bootstrap() {
+          const start = () => {
+            initEditor();
+          };
+
+          if (typeof Kekule !== 'undefined' && Kekule && typeof Kekule.ready === 'function') {
+            Kekule.ready(start);
           } else {
-            output.select();
-            document.execCommand("copy");
-            setStatus("SMILES 已复制到剪贴板。");
+            start();
           }
-        });
+        }
 
-        clearBtn.addEventListener("click", function () {
-          clearCanvas();
-          input.value = "";
-          setStatus("画布已清空。");
-        });
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', bootstrap);
+        } else {
+          bootstrap();
+        }
+      })();
 
-        loadForm.addEventListener("submit", function (event) {
-          event.preventDefault();
-          const smiles = input.value.trim();
-          if (!smiles) {
-            setStatus("请输入有效的 SMILES。");
-            return;
-          }
-          loadSmiles(smiles);
-        });
-
-        setupComposer();
-      });
     </script>
   </body>
 </html>
