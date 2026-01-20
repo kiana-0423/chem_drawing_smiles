@@ -34,6 +34,9 @@
       (function () {
         let composer = null;
         let bridge = null;
+        let smilesRetryCount = 0;
+        const MAX_SMILES_RETRIES = 20;
+        const KEKULE_CDN_BASE = "https://unpkg.com/kekule@0.9.9/dist/";
 
         function notifySmiles(smiles) {
           const value = smiles || "";
@@ -44,6 +47,44 @@
               console.error("updateSmiles call failed", error);
             }
           }
+        }
+
+        function configureAddonPaths() {
+          if (typeof Kekule === "undefined") return;
+          const openbabelBase = `${KEKULE_CDN_BASE}extra/openbabel/`;
+          const indigoBase = `${KEKULE_CDN_BASE}extra/indigo/`;
+
+          if (Kekule.OpenBabel) {
+            if (typeof Kekule.OpenBabel.setBasePath === "function") {
+              Kekule.OpenBabel.setBasePath(openbabelBase);
+            } else {
+              Kekule.OpenBabel.basePath = openbabelBase;
+              Kekule.OpenBabel.baseUrl = openbabelBase;
+            }
+          }
+
+          if (Kekule.Indigo) {
+            if (typeof Kekule.Indigo.setBasePath === "function") {
+              Kekule.Indigo.setBasePath(indigoBase);
+            } else {
+              Kekule.Indigo.basePath = indigoBase;
+              Kekule.Indigo.baseUrl = indigoBase;
+            }
+          }
+        }
+
+        function hasSmilesSupport() {
+          const writerManager = Kekule.IO && Kekule.IO.ChemDataWriterManager;
+          const readerManager = Kekule.IO && Kekule.IO.ChemDataReaderManager;
+          const writer =
+            writerManager && typeof writerManager.getWriterByFormatId === "function"
+              ? writerManager.getWriterByFormatId("smi")
+              : null;
+          const reader =
+            readerManager && typeof readerManager.getReaderByFormatId === "function"
+              ? readerManager.getReaderByFormatId("smi")
+              : null;
+          return Boolean(writer && reader);
         }
 
         function resolveSmilesFromComposer() {
@@ -110,6 +151,16 @@
         }
 
         function refreshSmiles() {
+          if (!hasSmilesSupport()) {
+            if (smilesRetryCount < MAX_SMILES_RETRIES) {
+              smilesRetryCount += 1;
+              setTimeout(refreshSmiles, 500);
+              return;
+            }
+            notifySmiles("");
+            return;
+          }
+
           resolveSmilesFromComposer()
             .then((smiles) => {
               notifySmiles(smiles || "");
@@ -169,6 +220,9 @@
 
         window.loadSmiles = function (smiles) {
           if (!composer) return false;
+          if (!hasSmilesSupport()) {
+            return false;
+          }
           try {
             const mol = Kekule.IO.loadFormatData(smiles || "", "smi");
             composer.setChemObj(mol);
@@ -184,6 +238,7 @@
         window.refreshSmiles = refreshSmiles;
 
         document.addEventListener("DOMContentLoaded", function () {
+          configureAddonPaths();
           setupComposer();
           connectBridge();
         });

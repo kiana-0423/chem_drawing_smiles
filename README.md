@@ -1,9 +1,9 @@
 # 化学结构绘制与 SMILES 转换工具
 
-本项目提供两种形态的化学结构绘制应用，均依赖 Kekule.js 在前端生成和解析 SMILES：
+本项目以网页形式提供化学结构绘制与 SMILES 转换功能，前端基于 Kekule.js 生成和解析 SMILES：
 
-- **桌面版 (`app.py`)**：使用 PySide6 + QtWebEngine 将编辑器嵌入到原生窗口中，适合需要本地桌面体验的场景。
 - **浏览器版 (`web_app.py`)**：内置简易 HTTP 服务，直接在浏览器中打开独立的 HTML 页面，快速查看和生成 SMILES。
+- **桌面版 (`app.py`)**：使用 PySide6 + QtWebEngine 将编辑器嵌入到原生窗口中，适合需要本地桌面体验的场景。
 
 > 注意：两种形态都通过 CDN 加载 Kekule 资源，运行环境需具备外网访问能力。若计划离线使用，需要将相应静态文件缓存到本地并更新 HTML 中的引用路径。
 
@@ -36,17 +36,6 @@ source .venv/bin/activate        # Windows 使用 .venv\Scripts\activate
 pip install PySide6 PySide6-QtWebEngine
 ```
 
-## 运行桌面版
-```bash
-python app.py
-```
-
-启动后将打开一个 Qt 窗口：
-- 左侧为 Kekule 画布，可直接绘制结构；
-- 右侧面板展示实时 SMILES，支持复制；
-- 输入框可粘贴 SMILES 并点击“载入结构”恢复画布；
-- “清空画布”按钮用于快速重置。
-
 ## 运行浏览器版
 ```bash
 python web_app.py
@@ -60,6 +49,17 @@ python web_app.py --no-browser     # 仅启动服务，不自动打开浏览器
 ```
 
 浏览器中将呈现与桌面版一致的功能，支持 SMILES 显示、复制、导入与画布清空。
+
+## 运行桌面版
+```bash
+python app.py
+```
+
+启动后将打开一个 Qt 窗口：
+- 左侧为 Kekule 画布，可直接绘制结构；
+- 右侧面板展示实时 SMILES，支持复制；
+- 输入框可粘贴 SMILES 并点击“载入结构”恢复画布；
+- “清空画布”按钮用于快速重置。
 
 ## 离线使用提示
 若网络受限，可将 Kekule 相关资源下载到本地，并修改下列文件中的 `<script>` / `<link>` 地址：
