@@ -6,8 +6,9 @@ from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsView
 
+from chem_editor.chemistry_services.base import ChemistryService
 from chem_editor.commands.stack import EditorCommandStack
-from chem_editor.core.models import MoleculeDocument
+from chem_editor.core.models import BondType, MoleculeDocument
 
 from .scene import MoleculeScene
 from .tools import EditorTool
@@ -20,8 +21,8 @@ class EditorCanvas(QGraphicsView):
     document_changed = Signal(object)
     selection_summary_changed = Signal(int, int)
 
-    def __init__(self, command_stack: EditorCommandStack) -> None:
-        self._scene = MoleculeScene(command_stack)
+    def __init__(self, command_stack: EditorCommandStack, chemistry_service: ChemistryService) -> None:
+        self._scene = MoleculeScene(command_stack, chemistry_service)
         super().__init__(self._scene)
         self._configure_view()
         self._connect_scene()
@@ -30,6 +31,21 @@ class EditorCanvas(QGraphicsView):
     def active_tool(self) -> str:
         """Return the current canvas tool name."""
         return self._scene.active_tool
+
+    @property
+    def current_element_symbol(self) -> str:
+        """Return the current atom element symbol."""
+        return self._scene.current_element_symbol
+
+    @property
+    def current_bond_type_label(self) -> str:
+        """Return the current bond type label."""
+        return self._scene.current_bond_type.display_name
+
+    @property
+    def current_bond_type(self) -> BondType:
+        """Return the current bond type."""
+        return self._scene.current_bond_type
 
     def set_active_tool(self, tool_name: str) -> None:
         """Switch the active tool and update view behavior."""
@@ -48,6 +64,18 @@ class EditorCanvas(QGraphicsView):
         """Delete the current selection through the editor command layer."""
         self._scene.delete_selected()
 
+    def set_current_element(self, symbol: str) -> None:
+        """Switch the current atom element."""
+        self._scene.set_current_element(symbol)
+        self.viewport().update()
+        self.status_message.emit(f"Current element set to {symbol}.")
+
+    def set_current_bond_type(self, bond_type: BondType | str) -> None:
+        """Switch the current bond type."""
+        self._scene.set_current_bond_type(bond_type)
+        self.viewport().update()
+        self.status_message.emit(f"Current bond type set to {self._scene.current_bond_type.display_name.lower()}.")
+
     def zoom_in(self) -> None:
         """Zoom into the scene."""
         self.scale(1.2, 1.2)
@@ -58,7 +86,7 @@ class EditorCanvas(QGraphicsView):
         self.scale(1 / 1.2, 1 / 1.2)
         self.status_message.emit(f"Zoomed out to {self._zoom_percent()}%.")
 
-    def document_snapshot(self):
+    def document_snapshot(self) -> MoleculeDocument:
         """Return the current document snapshot."""
         return self._scene.document_snapshot()
 
@@ -67,6 +95,12 @@ class EditorCanvas(QGraphicsView):
         self._scene.load_document(document)
         if fit_view:
             self.resetTransform()
+            self._fit_to_content()
+
+    def apply_document_change(self, document: MoleculeDocument, command_text: str, *, fit_view: bool = True) -> None:
+        """Apply a whole-document change through the undo stack."""
+        self._scene.apply_document_change(document, command_text)
+        if fit_view:
             self._fit_to_content()
 
     def _configure_view(self) -> None:
@@ -116,12 +150,19 @@ class EditorCanvas(QGraphicsView):
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:  # type: ignore[override]
         super().drawForeground(painter, rect)
 
-        info_rect = QRectF(rect.left() + 16, rect.top() + 16, 320, 80)
+        info_rect = QRectF(rect.left() + 16, rect.top() + 16, 360, 110)
         painter.setPen(QColor("#0f172a"))
         painter.drawText(
             info_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
-            f"Tool: {self.active_tool}\nAtoms: {self._scene.document_snapshot().atom_count}\nBonds: {self._scene.document_snapshot().bond_count}",
+            (
+                f"Tool: {self.active_tool}\n"
+                f"Element: {self.current_element_symbol}\n"
+                f"Bond: {self.current_bond_type_label}\n"
+                f"Atoms: {self._scene.document_snapshot().atom_count}\n"
+                f"Bonds: {self._scene.document_snapshot().bond_count}\n"
+                f"Invalid atoms: {self._scene.invalid_atom_count}"
+            ),
         )
 
         if self._scene.is_empty():

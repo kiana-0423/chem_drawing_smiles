@@ -4,27 +4,88 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+from .elements import atomic_number_for_symbol, normalize_symbol, symbol_for_atomic_number
+
+
+class BondType(StrEnum):
+    """Supported editor bond types."""
+
+    SINGLE = "single"
+    DOUBLE = "double"
+    TRIPLE = "triple"
+    AROMATIC = "aromatic"
+
+    @property
+    def display_name(self) -> str:
+        """Return a user-facing label."""
+        return self.value.capitalize()
 
 
 @dataclass(slots=True)
 class Atom:
-    """A minimal atom record for future editor and chemistry integration."""
+    """An editor atom with chemistry-derived validation state."""
 
     atom_id: int
-    element: str
+    atomic_number: int
+    symbol: str
     x: float
     y: float
     formal_charge: int = 0
+    aromatic: bool = False
+    implicit_hydrogens: int = 0
+    is_valid: bool = True
+    validation_warning: str | None = None
+
+    @classmethod
+    def from_symbol(
+        cls,
+        atom_id: int,
+        symbol: str,
+        x: float,
+        y: float,
+        *,
+        formal_charge: int = 0,
+        aromatic: bool = False,
+    ) -> "Atom":
+        """Create an atom from an element symbol."""
+        normalized_symbol = normalize_symbol(symbol)
+        return cls(
+            atom_id=atom_id,
+            atomic_number=atomic_number_for_symbol(normalized_symbol),
+            symbol=normalized_symbol,
+            x=x,
+            y=y,
+            formal_charge=formal_charge,
+            aromatic=aromatic,
+        )
+
+    def normalized(self) -> "Atom":
+        """Return a copy with normalized atomic metadata."""
+        symbol = symbol_for_atomic_number(self.atomic_number)
+        return Atom(
+            atom_id=self.atom_id,
+            atomic_number=self.atomic_number,
+            symbol=symbol,
+            x=self.x,
+            y=self.y,
+            formal_charge=self.formal_charge,
+            aromatic=self.aromatic,
+            implicit_hydrogens=self.implicit_hydrogens,
+            is_valid=self.is_valid,
+            validation_warning=self.validation_warning,
+        )
 
 
 @dataclass(slots=True)
 class Bond:
-    """A minimal bond record for future editor and chemistry integration."""
+    """An editor bond with explicit bond type."""
 
     bond_id: int
     atom_a_id: int
     atom_b_id: int
-    order: int = 1
+    bond_type: BondType = BondType.SINGLE
 
 
 @dataclass(slots=True)
@@ -100,3 +161,11 @@ class MoleculeDocument:
         """Return whether a bond already exists between two atoms."""
         atom_pair = {atom_a_id, atom_b_id}
         return any({bond.atom_a_id, bond.atom_b_id} == atom_pair for bond in self.bonds.values())
+
+    def find_bond_between(self, atom_a_id: int, atom_b_id: int) -> Bond | None:
+        """Return the bond between two atoms if it exists."""
+        atom_pair = {atom_a_id, atom_b_id}
+        for bond in self.bonds.values():
+            if {bond.atom_a_id, bond.atom_b_id} == atom_pair:
+                return bond
+        return None
