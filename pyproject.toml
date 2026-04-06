@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chem-drawing-smiles"
+version = "0.1.0"
+description = "Native Python desktop scaffold for a chemical structure editor."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7",
+    "rdkit>=2023.9.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+chem-editor = "chem_editor.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chem_editor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
